@@ -28,9 +28,12 @@ public class KmlRewriter {
 
 	private final Document doc;
 	private final File out;
+	
+	private final boolean isUnified;
 
-	public KmlRewriter(String input, String output) throws ParserConfigurationException, SAXException, IOException {
+	public KmlRewriter(String input, String output, boolean isUnified) throws ParserConfigurationException, SAXException, IOException {
 		out = new File(output);
+		this.isUnified = isUnified;
 
 		DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 		DocumentBuilder builder = factory.newDocumentBuilder();
@@ -87,6 +90,19 @@ public class KmlRewriter {
 		documentNode.appendChild(placemark);
 	}
 	
+	private Node generateDocumentNode(List<Line> lines) {
+		Node document = doc.createElement("Document");
+		
+		StringBuilder sb = new StringBuilder();
+		for (Line line : lines) {
+			sb.append(line.getV0().getX() + "," + line.getV0().getY() + "," + line.getV0().getZ());
+			sb.append("\n");
+		}
+		addCoordinate(document, sb.toString());
+		
+		return document;
+	}
+	
 	private Node generateDocumentNode(List<Line> lines, double average, double standardDiviation) {
 		Node document = doc.createElement("Document");
 		
@@ -111,19 +127,23 @@ public class KmlRewriter {
 		Node parent = list.item(0).getParentNode();
 		parent.removeChild(list.item(0));
 	}
-	
-	private void execute() {
-		Element root = doc.getDocumentElement();
 
+	private void generateSplitedLine() {
+		Element root = doc.getDocumentElement();
 		List<Line> lines = generateLineList(root.getElementsByTagName("Placemark"));
 		double average = calculateAverageLength(lines);
 		double standardDiviation = calculateStandardDiviation(lines, average);
-
 		removeDocumentNode(root);
-		
 		root.appendChild(generateDocumentNode(lines, average, standardDiviation));
 	}
-
+	
+	private void generateUnifiedLine() {
+		Element root = doc.getDocumentElement();
+		List<Line> lines = generateLineList(root.getElementsByTagName("Placemark"));
+		removeDocumentNode(root);
+		root.appendChild(generateDocumentNode(lines));
+	}
+	
 	private Line generateLine(Node initialNode, Node terminalNode) {
 		Vertex v0 = generateVertex(initialNode);
 		Vertex v1 = generateVertex(terminalNode);
@@ -142,7 +162,11 @@ public class KmlRewriter {
 	}
 
 	public void run() {
-		execute();
+		if (isUnified) {
+			generateUnifiedLine();
+		} else {
+			generateSplitedLine();
+		}
 		save();
 	}
 }
